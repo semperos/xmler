@@ -1,0 +1,10 @@
+[package]
+name = "xmler"
+version = "0.1.0"
+authors = ["Daniel Gregoire <daniel.l.gregoire@gmail.com>"]
+
+[dependencies]
+curl = "0.4.7"
+glob = "0.2.11"
+xml-rs = "0.6"
+zip = "0.2.5"
