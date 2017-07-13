@@ -50,35 +50,41 @@ fn process(glob_pattern: &str, report: &mut UrlReport) {
                     namespace: Some("http://www.sitemaps.org/schemas/sitemap/0.9"),
                     prefix: None,
                 }.to_owned();
+                let mut in_url_set = false;
 
                 for e in parser {
                     match e {
                         Ok(XmlEvent::StartElement { name, .. }) => {
+                            if current_name.local_name == "urlset" {
+                                in_url_set = true;
+                            }
                             current_name = name;
                         }
                         Ok(XmlEvent::Characters(cs)) => {
-                            // TODO Understand why clone() is needed here, what's causing a move
-                            match current_name.prefix.clone() {
-                                Some(pre) => {
-                                    report.prefixes.insert(pre.clone());
-                                    match pre.as_ref() {
-                                        "image" => {
-                                            match current_name.local_name.as_ref() {
-                                                "loc" => {
-                                                    report.image_urls.push(cs);
+                            if in_url_set {
+                                // TODO Understand why clone() is needed here, what's causing a move
+                                match current_name.prefix.clone() {
+                                    Some(pre) => {
+                                        report.prefixes.insert(pre.clone());
+                                        match pre.as_ref() {
+                                            "image" => {
+                                                match current_name.local_name.as_ref() {
+                                                    "loc" => {
+                                                        report.image_urls.push(cs);
+                                                    }
+                                                    _ => {}
                                                 }
-                                                _ => {}
                                             }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
-                                }
-                                None => {
-                                    match current_name.local_name.as_ref() {
-                                        "loc" => {
-                                            report.page_urls.push(cs);
+                                    None => {
+                                        match current_name.local_name.as_ref() {
+                                            "loc" => {
+                                                report.page_urls.push(cs);
+                                            }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
                                 }
                             }
