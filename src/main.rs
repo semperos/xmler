@@ -97,9 +97,12 @@ fn process(glob_pattern: &str, report: &mut UrlReport) {
 }
 
 fn main() {
-    if env::args().len() < 2 {
+    let args = env::args();
+    if args.len() < 2 || args.len() > 3 {
         println!(
             "
+    USAGE: xmler <glob-pattern> [output-csv-file]
+
     You must supply a glob pattern representing the file patterns for xmler to search.
 
        Example: ./xmler 'abc/**/*.xml'
@@ -116,6 +119,7 @@ fn main() {
         files: Vec::new(),
         prefixes: HashSet::new(),
     };
+    println!("Processing all files that match your glob pattern...");
     process(&glob_pattern, report);
     println!(
         "
@@ -131,13 +135,20 @@ fn main() {
     println!(
         "
         * {} Unique Page URLs
-        * {} Unique Image URLs
-    ",
+        * {} Unique Image URLs",
         page_urls_set.len(),
         image_urls_set.len()
     );
-    println!("    * {} files were consulted", report.files.len());
-    println!("    * XML prefixes encountered: {:?}", report.prefixes);
+    println!(
+        "
+        * {} files were consulted",
+        report.files.len()
+    );
+    println!(
+        "
+        * XML prefixes encountered: {:?}",
+        report.prefixes
+    );
 
     // Persist report to CSV if output file-name specified
     match env::args().nth(2) {
