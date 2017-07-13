@@ -4,7 +4,11 @@ version = "0.1.0"
 authors = ["Daniel Gregoire <daniel.l.gregoire@gmail.com>"]
 
 [dependencies]
-curl = "0.4.7"
+#csv = "0.15.0"
+csv = "1.0.0-beta.3"
+# curl = "0.4.7"
 glob = "0.2.11"
+serde = "1.0.10"
+serde_derive = "1.0.10"
 xml-rs = "0.6"
-zip = "0.2.5"
+# zip = "0.2.5"
