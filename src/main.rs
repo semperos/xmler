@@ -79,24 +79,15 @@ fn process(glob_pattern: &str, report: &mut UrlReport) {
                                 match current_name.prefix.clone() {
                                     Some(pre) => {
                                         report.prefixes.insert(pre.clone());
-                                        match pre.as_ref() {
-                                            "image" => {
-                                                match current_name.local_name.as_ref() {
-                                                    "loc" => {
-                                                        report.image_urls.push(cs);
-                                                    }
-                                                    _ => {}
-                                                }
+                                        if let "image" = pre.as_ref() {
+                                            if let "loc" = current_name.local_name.as_ref() {
+                                                report.image_urls.push(cs);
                                             }
-                                            _ => {}
                                         }
                                     }
                                     None => {
-                                        match current_name.local_name.as_ref() {
-                                            "loc" => {
-                                                report.page_urls.push(cs);
-                                            }
-                                            _ => {}
+                                        if let "loc" = current_name.local_name.as_ref() {
+                                            report.page_urls.push(cs);
                                         }
                                     }
                                 }
@@ -170,37 +161,34 @@ fn main() {
     );
 
     // Persist report to CSV if output file-name specified
-    match env::args().nth(2) {
-        Some(file_path) => {
-            println!("Writing output to CSV {}", file_path);
-            match csv::Writer::from_path(file_path) {
-                Ok(mut writer) => {
-                    for url in page_urls_set {
-                        match writer.serialize(IndexableEntry {
-                            url: url,
-                            url_type: UrlType::Page,
-                        }) {
-                            Ok(_) => {}
-                            Err(e) => println!("Error: {:?}", e),
-                        }
-                    }
-                    for url in image_urls_set {
-                        match writer.serialize(IndexableEntry {
-                            url: url,
-                            url_type: UrlType::Image,
-                        }) {
-                            Ok(_) => {}
-                            Err(e) => println!("Error: {:?}", e),
-                        }
-                    }
-                    match writer.flush() {
+    if let Some(file_path) = env::args().nth(2) {
+        println!("Writing output to CSV {}", file_path);
+        match csv::Writer::from_path(file_path) {
+            Ok(mut writer) => {
+                for url in page_urls_set {
+                    match writer.serialize(IndexableEntry {
+                        url: url,
+                        url_type: UrlType::Page,
+                    }) {
                         Ok(_) => {}
                         Err(e) => println!("Error: {:?}", e),
                     }
                 }
-                Err(e) => println!("Error: {:?}", e),
+                for url in image_urls_set {
+                    match writer.serialize(IndexableEntry {
+                        url: url,
+                        url_type: UrlType::Image,
+                    }) {
+                        Ok(_) => {}
+                        Err(e) => println!("Error: {:?}", e),
+                    }
+                }
+                match writer.flush() {
+                    Ok(_) => {}
+                    Err(e) => println!("Error: {:?}", e),
+                }
             }
+            Err(e) => println!("Error: {:?}", e),
         }
-        None => {}
     }
 }
