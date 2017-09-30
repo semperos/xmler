@@ -1,153 +1,53 @@
-// Copyright 2017 Daniel Gregoire, The Xmler Project Contributors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+extern crate clap;
 extern crate csv;
-extern crate glob;
-extern crate xml;
+extern crate xmler;
 
-#[macro_use]
-extern crate serde_derive;
-
-use glob::glob;
-
-use std::convert::From;
+use clap::{App, Arg};
 use std::collections::HashSet;
-use std::env;
-use std::fs::File;
-use std::io::BufReader;
-
-use xml::reader::{EventReader, XmlEvent};
-use xml::name::{Name, OwnedName};
-
-#[derive(Debug)]
-struct UrlReport {
-    page_urls: Vec<String>,
-    image_urls: Vec<String>,
-    files: Vec<String>,
-    prefixes: HashSet<String>,
-}
-
-#[derive(Debug, Serialize)]
-enum UrlType {
-    Page,
-    Image,
-}
-
-#[derive(Debug, Serialize)]
-struct IndexableEntry {
-    url: String,
-    url_type: UrlType,
-}
-
-fn process(glob_pattern: &str, report: &mut UrlReport) {
-    for entry in glob(glob_pattern).expect("Failed to read glob pattern for XML files.") {
-        match entry {
-            Ok(path) => {
-                report.files.push(String::from(path.to_str().unwrap()));
-                let file = File::open(path).unwrap();
-                let file = BufReader::new(file);
-
-                let parser = EventReader::new(file);
-                let mut current_name: OwnedName = Name {
-                    local_name: "sitemapindex",
-                    namespace: Some("http://www.sitemaps.org/schemas/sitemap/0.9"),
-                    prefix: None,
-                }.to_owned();
-                let mut in_url_set = false;
-
-                for e in parser {
-                    match e {
-                        Ok(XmlEvent::StartElement { name, .. }) => {
-                            if current_name.local_name == "urlset" {
-                                in_url_set = true;
-                            }
-                            current_name = name;
-                        }
-                        Ok(XmlEvent::Characters(cs)) => {
-                            if in_url_set {
-                                // TODO Understand why clone() is needed here, what's causing a move
-                                match current_name.prefix.clone() {
-                                    Some(pre) => {
-                                        report.prefixes.insert(pre.clone());
-                                        if let "image" = pre.as_ref() {
-                                            if let "loc" = current_name.local_name.as_ref() {
-                                                report.image_urls.push(cs);
-                                            }
-                                        }
-                                    }
-                                    None => {
-                                        if let "loc" = current_name.local_name.as_ref() {
-                                            report.page_urls.push(cs);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!("Error: {:?}", e);
-                            break;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Err(e) => println!("Error: {:?}", e),
-        }
-    }
-}
+use std::process;
 
 fn main() {
-    let args = env::args();
-    if args.len() < 2 || args.len() > 3 {
-        println!(
-            "
-    USAGE: xmler <glob-pattern> [output-csv-file]
+    let matches = App::new("xmler")
+        .version("0.1.0")
+        .author("Daniel Gregoire <daniel.l.gregoire@gmail.com>")
+        .about("TBD")
+        .arg(
+            Arg::with_name("glob_pattern")
+                .value_name("GLOB_PATTERN")
+                .required(true)
+                .index(1)
+                .help("Glob pattern which limits which XML files to analyze"),
+        )
+        .arg(
+            Arg::with_name("ouptut_file")
+                .value_name("OUTPUT_FILE")
+                .required(false)
+                .help(
+                    "Output file to which a CSV version of the report will be written",
+                ),
+        )
+        .get_matches();
 
-    You must supply a glob pattern representing the file patterns for xmler to search.
+    // Required by options ^^^, so by here it will have a value.
+    let glob_pattern = matches.value_of("glob_pattern").unwrap();
+    let mut report = xmler::fresh_report();
 
-       Example: ./xmler 'abc/**/*.xml'
-
-    If you then specify a file name, all URLs found will be written to it in CSV format.
-    "
-        );
-        ::std::process::exit(1);
-    }
-    let glob_pattern = env::args().nth(1).unwrap();
-    let report = &mut UrlReport {
-        page_urls: Vec::new(),
-        image_urls: Vec::new(),
-        files: Vec::new(),
-        prefixes: HashSet::new(),
-    };
     println!("Processing all files that match your glob pattern...");
-    process(&glob_pattern, report);
+
+    xmler::process(glob_pattern, &mut report);
+
     println!(
         "
     Report:
 
-        * {} Page URLs
-        * {} Image URLs",
-        report.page_urls.len(),
-        report.image_urls.len()
+        * {} Page URLs",
+        report.page_urls.len()
     );
     let page_urls_set: HashSet<String> = report.page_urls.clone().into_iter().collect();
-    let image_urls_set: HashSet<String> = report.image_urls.clone().into_iter().collect();
     println!(
         "
-        * {} Unique Page URLs
-        * {} Unique Image URLs",
-        page_urls_set.len(),
-        image_urls_set.len()
+        * {} Unique Page URLs",
+        page_urls_set.len()
     );
     println!(
         "
@@ -161,34 +61,29 @@ fn main() {
     );
 
     // Persist report to CSV if output file-name specified
-    if let Some(file_path) = env::args().nth(2) {
+    if let Some(file_path) = matches.value_of("output_file") {
         println!("Writing output to CSV {}", file_path);
         match csv::Writer::from_path(file_path) {
             Ok(mut writer) => {
                 for url in page_urls_set {
-                    match writer.serialize(IndexableEntry {
-                        url: url,
-                        url_type: UrlType::Page,
-                    }) {
-                        Ok(_) => {}
-                        Err(e) => println!("Error: {:?}", e),
+                    if let Err(e) = writer.serialize(xmler::indexable_entry(url)) {
+                        eprintln!("Error writing entry to output file {}: {:?}", file_path, e);
+                        process::exit(1);
                     }
                 }
-                for url in image_urls_set {
-                    match writer.serialize(IndexableEntry {
-                        url: url,
-                        url_type: UrlType::Image,
-                    }) {
-                        Ok(_) => {}
-                        Err(e) => println!("Error: {:?}", e),
-                    }
-                }
-                match writer.flush() {
-                    Ok(_) => {}
-                    Err(e) => println!("Error: {:?}", e),
+                if let Err(e) = writer.flush() {
+                    eprintln!(
+                        "Error flushing writer while writing to {}: {:?}",
+                        file_path,
+                        e
+                    );
+                    process::exit(1);
                 }
             }
-            Err(e) => println!("Error: {:?}", e),
+            Err(e) => {
+                eprintln!("Error creating writer for {}: {:?}", file_path, e);
+                process::exit(1);
+            }
         }
     }
 }

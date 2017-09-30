@@ -1,10 +1,19 @@
 [package]
 name = "xmler"
 version = "0.1.0"
+license = "MIT OR Apache-2.0"
 authors = ["Daniel Gregoire <daniel.l.gregoire@gmail.com>"]
-license = "Apache-2.0"
+
+[lib]
+name="xmler"
+path="src/lib.rs"
+
+[[bin]]
+name="xmler"
+path="src/main.rs"
 
 [dependencies]
+clap = "~2.26"
 csv = "1.0.0-beta.3"
 glob = "0.2.11"
 serde = "1.0.10"
